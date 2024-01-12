@@ -13,6 +13,9 @@ class ImgVectorDatabase(): # 管理数据库conncetion 和 Vectorizer
         connections.connect(db_name=self.connection_name, host="localhost", port="19530")
         self.collection_list = utility.list_collections()
 
+    def show_collections(self):
+        print(self.collection_list)
+
     def check_collection(self, collection_name="default"):
         if utility.has_collection(collection_name,timeout=10) and collection_name in self.collection_list:
             #print(f"Collection {collection_name} already exists!")

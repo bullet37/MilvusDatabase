@@ -18,10 +18,11 @@ from torchvision import transforms
 from img_vector_database import ImgVectorDatabase
 from itertools import combinations
 from utils import print_demo
-from img_vectorizer import ImgVectorizer
+from res_vectorizer import ResVectorizer
+
 class ImgDataHandler():
-    def __init__(self, data_url="default", dim=256, model_size=18):
-          self.vectorizer = ImgVectorizer(dim, model_size)
+    def __init__(self, vectorizer, data_url="default", dim=256, model_size=18):
+          self.vectorizer = vectorizer
           self.dataset = ImgDataset(root_dir=data_url)
           self.dataloader = DataLoader(self.dataset, batch_size=32, shuffle=True)
     def get_data(self):
@@ -110,8 +111,9 @@ def main():
 
     dataBase.add_collection(dim=dim,collection_name=collection_name)
 
-    handler = ImgDataHandler(dataset_url, dim, model_size)
-    handler2 = ImgDataHandler(testset_url, dim, model_size)
+    vectorizer = ResVectorizer(dim, model_size)
+    handler = ImgDataHandler(vectorizer, dataset_url, dim, model_size)
+    handler2 = ImgDataHandler(vectorizer, testset_url, dim, model_size)
 
     img_vector, data_name = handler.get_data()
     img_vector = np.array(img_vector).reshape(-1, dim)

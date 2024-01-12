@@ -1,7 +1,6 @@
 from PIL import Image
 import matplotlib.pyplot as plt
 import logging
-
 def print_time(duration):
     total_seconds = int(duration.total_seconds())
     hours = total_seconds // 3600
