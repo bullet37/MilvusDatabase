@@ -1,4 +1,4 @@
-from pymilvus import (
+from pymilvus import (  # milvus: v2.3.0
     connections,
     utility,
     FieldSchema, CollectionSchema, DataType,
@@ -14,7 +14,43 @@ class ImgVectorDatabase(): # 管理数据库conncetion 和 Vectorizer
         self.collection_list = utility.list_collections()
 
     def show_collections(self):
-        print(self.collection_list)
+        for collection in self.collection_list:
+            self.show_collection(collection)
+
+    def show_collection(self, collection_name="default"):
+        if not self.check_collection(collection_name): return False
+        print(collection_name)
+        collection = Collection(collection_name)
+        print("collection.num_entities: ", collection.num_entities)
+        print("collection.schema: ", collection.schema)
+
+    def get_prime_key_field(self, collection_name):
+        if not self.check_collection(collection_name):
+            return None
+        collection = Collection(name=collection_name)
+        collection_schema = collection.schema
+        primary_key_field = None
+        for field in collection_schema.fields:
+            if field.is_primary:
+                primary_key_field = field
+                break
+        return primary_key_field
+    def check_entities(self, collection_name="default", primary_key_list=[], output_fields=["pk", "embedding"]):
+        if not self.check_collection(collection_name):
+            return None
+
+        collection = Collection(name=collection_name)
+        query_expressions = [f"{primary_key} in [{', '.join(map(str, primary_key_list))}]"]
+
+        results = collection.query(expr=query_expressions, output_fields=output_fields)
+        prime_key_field = self.get_prime_key_field(collection_name)
+        existing_keys = [result.entity.get(prime_key_field) for result in results]
+
+        for key in primary_key_list:
+            if key in existing_keys:
+                print(f"Primary key {key} exists in the collection.")
+            else:
+                print(f"Primary key {key} does not exist in the collection.")
 
     def check_collection(self, collection_name="default"):
         if utility.has_collection(collection_name,timeout=10) and collection_name in self.collection_list:
@@ -24,8 +60,12 @@ class ImgVectorDatabase(): # 管理数据库conncetion 和 Vectorizer
             logging.error("Collection {} does not exist".format(collection_name))
             return False
 
-    def query_entities(self, collection_name="default", query_vector=[], nprobe=10, search_top_k=8,\
-                       output_fields=["pk"], chunk_size=10):
+    def query_entities(self, collection_name="default", query_vector=[],  search_top_k=8,\
+                       nprobe=10, output_fields=None, expr='', chunk_size=10):
+
+
+        if output_fields is None:
+            output_fields = ["pk", "embeddings","url"]
         if not self.check_collection(collection_name):
             return None
 
@@ -60,6 +100,7 @@ class ImgVectorDatabase(): # 管理数据库conncetion 和 Vectorizer
             entities = [
                 [str(item) for item in data_name],
                 img_vector,  # field embeddings, supports numpy.ndarray and list
+                [str(item) for item in data_name],
             ]
             insert_result = collection.insert(entities)
         else:
@@ -68,6 +109,7 @@ class ImgVectorDatabase(): # 管理数据库conncetion 和 Vectorizer
                 entities = [
                     [str(item) for item in data_name[i:i + chunk_size]],
                     img_vector[i:i + chunk_size],  # field embeddings, supports numpy.ndarray and list
+                    [str(item) for item in data_name[i:i + chunk_size]],
                 ]
                 insert_result = collection.insert(entities)
                 now = datetime.now()
@@ -87,7 +129,6 @@ class ImgVectorDatabase(): # 管理数据库conncetion 和 Vectorizer
         # expr="random > -14"，表示查询 hello_milvus 中 "random" 属性大于 -14 的实体
         collection.create_index(field_name="embeddings", index_params=index)
         collection.load()
-
 
 
     def update_data(self):
@@ -117,23 +158,25 @@ class ImgVectorDatabase(): # 管理数据库conncetion 和 Vectorizer
           logging.error("Get collection Fail, collection {} does not exist".format(collection_name))
           return None
 
-
-    def add_collection(self, dim, collection_name="default", primary_key="pk", des="ImgVectorDatabase Schema", \
-             consistency_level="Strong"):
+    # todo: normalize fieldsschema
+    def add_collection(self, dim, collection_name="default",  des="ImgVectorDatabase Schema", \
+             primary_key="pk", consistency_level="Strong"):
         if self.check_collection(collection_name):
             return
         fields = [
             FieldSchema(name=primary_key, dtype=DataType.VARCHAR, is_primary=True, auto_id=False, max_length=500),
-            FieldSchema(name="embeddings", dtype=DataType.FLOAT_VECTOR, dim=dim)
+            FieldSchema(name="embeddings", dtype=DataType.FLOAT_VECTOR, dim=dim),
+            FieldSchema(name="url", dtype=DataType.VARCHAR,  max_length=500),
             # FieldSchema(name="random", dtype=DataType.DOUBLE),
         ]
         schema = CollectionSchema(fields, des)
         collection = Collection(collection_name, schema, consistency_level=consistency_level)
         assert collection.is_empty is True
         assert collection.num_entities == 0
-        assert len(collection.indexes) != 0
+        assert len(collection.indexes) == 0
         self.collection_list.append(collection_name)
         print(f"Number of entities in collection {collection_name}: {collection.num_entities}")  # check the num_entities
+        return collection.num_entities
 
     def drop_collection(self,collection_name):
         if self.check_collection(collection_name):

@@ -18,7 +18,7 @@ from torchvision import transforms
 from img_vector_database import ImgVectorDatabase
 from itertools import combinations
 from utils import print_demo
-from res_vectorizer import ResVectorizer
+from vectorizers.res_vectorizer import ResVectorizer
 
 class ImgDataHandler():
     def __init__(self, vectorizer, data_url="default", dim=256, model_size=18):
@@ -57,59 +57,24 @@ class ImgDataset(Dataset):
             'file_name': self.image_files[idx]
         }
 
-class MultiVectorFusion(torch.nn.Module):
-    def __init__(self, dim=256, combination_num=2):
-        super().__init__()
-        self.dim = dim
-        # for combinations feature
-        self.combination_num = combination_num
-        self.conv1d = torch.nn.Conv1d(self.dim, self.dim, kernel_size=self.combination_num, padding=0, bias=False)
-
-        # for permute feature
-        self.conv2d = torch.nn.Conv2d(self.dim, self.dim, kernel_size=1, stride=1, bias=False)
-        self.transformer = torch.nn.TransformerEncoder(
-            torch.nn.TransformerEncoderLayer(d_model=self.dim, nhead=8),
-            num_layers=4,
-        )
-        self.fc = torch.nn.Linear(self.dim, 1)
-
-    def combinations_feature(self, x):
-        x = torch.nn.functional.adaptive_max_pool2d(x, 1).flatten(1)  # 4, 512
-        x = torch.stack(
-            [torch.stack(couple, dim=1) for couple in combinations(x, self.combination_num)])  # torch.Size([6, 512, 2])
-        x = self.conv1d(x).flatten(1)
-        logits = self.fc(x).mean()  # logits 为 6 种 feature 组合的结果，求均值
-        return logits
-
-    def permute_feature(self, x):
-        x = self.conv2d(x)  # 4, 512, 1, 1
-        x = x.permute(0, 2, 3, 1).contiguous().view(-1, 512).unsqueeze(0)  # 1, 4, 512
-        x = self.transformer(x)  # 1, 4, 512
-        return self.fc(x[:, 0, :])
-
-    def forward(self, x, type="p"):
-        if type == "p":
-            self.permute_feature(x)
-        elif type == "c":
-            self.combinations_feature(x)
-        else:
-            print("Error")
-    # multi_images = torch.rand(4, 512, 1, 1)
-    # model = MultiVectorFusion()
-    # res = model(multi_images)
-    # print(res)  # => tensor(1.0893, grad_fn=<MeanBackward0>)
 
 def main():
+    # if len(sys.argv) < 2 or len(sys.argv) > 3:
+    #     print("Usage: %s image.jpg [dir]" % sys.argv[0])
+    # else:
+    #     image_path, wd = sys.argv[1], '.' if len(sys.argv) < 3 else sys.argv[2]
+
     dataset_url = r"./data/dataset/"
     testset_url = r"./data/testset/"
     dim = 256
-    model_size= 18
+    model_size= 50
     collection_name = "Demo_18_256"
 
     dataBase = ImgVectorDatabase()
-    dataBase.check_collection(collection_name)
+    exist_flag = dataBase.check_collection(collection_name)
+    if exist_flag is False:
+        entities_num = database.add_collection(dim=dim, collection_name=collection_name)
 
-    dataBase.add_collection(dim=dim,collection_name=collection_name)
 
     vectorizer = ResVectorizer(dim, model_size)
     handler = ImgDataHandler(vectorizer, dataset_url, dim, model_size)

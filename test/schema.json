@@ -1,0 +1,21 @@
+{
+    "fields": [
+        {
+            "name": "primary_key",
+            "dtype": "DataType.VARCHAR",
+            "is_primary": true,
+            "auto_id": false,
+            "max_length": 500
+        },
+        {
+            "name": "embeddings",
+            "dtype": "DataType.FLOAT_VECTOR",
+            "dim": 128
+        },
+        {
+            "name": "url",
+            "dtype": "DataType.VARCHAR",
+            "max_length": 500
+        }
+    ]
+}

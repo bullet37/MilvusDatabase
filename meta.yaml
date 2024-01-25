@@ -1,0 +1,6 @@
+# dimension
+dimension: 256
+shape: (256,256)
+resVectorize:
+  model_size: 18
+
